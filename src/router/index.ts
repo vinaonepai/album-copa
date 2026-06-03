@@ -1,31 +1,39 @@
-import { createRouter, createWebHistory } from '@ionic/vue-router';
-import { RouteRecordRaw } from 'vue-router';
+import { createRouter, createWebHistory } from '@ionic/vue-router'
+import { RouteRecordRaw } from 'vue-router'
 import TabsPage from '../views/TabsPage.vue'
 
 const routes: Array<RouteRecordRaw> = [
   {
-    path: '/',
-    redirect: '/tabs/tab1'
+  path: '/',
+  redirect: '/login'
   },
   {
-    path: '/tabs/',
+    path: '/login',
+    component: () => import('@/views/LoginPage.vue')
+  },
+  {
+    path: '/cadastro',
+    component: () => import('@/views/RegisterPage.vue')
+  },
+  {
+    path: '/recuperar-senha',
+    component: () => import('@/views/ResetPasswordPage.vue')
+  },
+  {
+    path: '/tabs',
     component: TabsPage,
     children: [
       {
         path: '',
-        redirect: '/tabs/tab1'
+        redirect: '/tabs/album'
       },
       {
-        path: 'tab1',
-        component: () => import('@/views/Tab1Page.vue')
+        path: 'album',
+        component: () => import('@/views/AlbumPage.vue')
       },
       {
-        path: 'tab2',
-        component: () => import('@/views/Tab2Page.vue')
-      },
-      {
-        path: 'tab3',
-        component: () => import('@/views/Tab3Page.vue')
+        path: 'perfil',
+        component: () => import('@/views/ProfilePage.vue')
       }
     ]
   }
