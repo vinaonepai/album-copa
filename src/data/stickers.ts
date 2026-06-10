@@ -9,6 +9,7 @@ export const stickers = [
     nome: 'Neymar',
     selecao: 'Brasil',
     foto: neymar,
+    raridade: 'Brilhante',
     coletada: false
   },
   {
@@ -16,6 +17,7 @@ export const stickers = [
     nome: 'Messi',
     selecao: 'Argentina',
     foto: messi,
+    raridade: 'Rara',
     coletada: false
   },
   {
@@ -23,6 +25,7 @@ export const stickers = [
     nome: 'Mbappé',
     selecao: 'França',
     foto: mbappe,
+    raridade: 'Rara',
     coletada: false
   },
   {
@@ -30,6 +33,7 @@ export const stickers = [
     nome: 'Cristiano Ronaldo',
     selecao: 'Portugal',
     foto: cr7,
+    raridade: 'Rara',
     coletada: false
   }
 ]

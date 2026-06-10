@@ -27,6 +27,21 @@
       </h3>
 
       <IonBadge
+        class="raridade"
+        :color="
+          sticker.raridade === 'Brilhante'
+            ? 'danger'
+            : sticker.raridade === 'Rara'
+            ? 'primary'
+            : 'medium'
+        "
+      >
+        ⭐ {{ sticker.raridade }}
+      </IonBadge>
+
+      <br><br>
+
+      <IonBadge
         :color="
           sticker.coletada
             ? 'success'
@@ -73,6 +88,7 @@ interface Sticker {
   nome: string
   selecao: string
   foto: string
+  raridade: string
   coletada: boolean
 }
 
@@ -88,13 +104,9 @@ defineEmits<{
 <style scoped>
 .figurinha {
   background: #1e293b;
-
   border-radius: 20px;
-
   overflow: hidden;
-
   transition: .25s;
-
   border: 1px solid rgba(
     255,
     255,
@@ -121,13 +133,9 @@ defineEmits<{
 
 .foto-jogador {
   width: 100%;
-
   height: 420px;
-
   object-fit: contain;
-
   background: #0f172a;
-
   padding: 10px;
 }
 
@@ -141,6 +149,11 @@ h3 {
 
 ion-badge {
   font-size: 13px;
+}
+
+.raridade {
+  font-size: 14px;
+  font-weight: bold;
 }
 
 ion-button {
