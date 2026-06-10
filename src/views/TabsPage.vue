@@ -23,6 +23,14 @@
           <IonLabel>Perfil</IonLabel>
         </IonTabButton>
 
+        <IonTabButton
+          tab="sobre"
+          href="/tabs/sobre"
+        >
+          <IonIcon :icon="informationCircleOutline" />
+          <IonLabel>Sobre</IonLabel>
+        </IonTabButton>
+
       </IonTabBar>
 
     </IonTabs>
@@ -43,6 +51,7 @@ import {
 
 import {
   imagesOutline,
-  personOutline
+  personOutline,
+  informationCircleOutline
 } from 'ionicons/icons'
 </script>

@@ -20,23 +20,27 @@ const routes: Array<RouteRecordRaw> = [
     component: () => import('@/views/ResetPasswordPage.vue')
   },
   {
-    path: '/tabs',
-    component: TabsPage,
-    children: [
-      {
-        path: '',
-        redirect: '/tabs/album'
-      },
-      {
-        path: 'album',
-        component: () => import('@/views/AlbumPage.vue')
-      },
-      {
-        path: 'perfil',
-        component: () => import('@/views/ProfilePage.vue')
-      }
-    ]
-  }
+  path: '/tabs',
+  component: TabsPage,
+  children: [
+    {
+      path: '',
+      redirect: '/tabs/album'
+    },
+    {
+      path: 'album',
+      component: () => import('@/views/AlbumPage.vue')
+    },
+    {
+      path: 'perfil',
+      component: () => import('@/views/ProfilePage.vue')
+    },
+    {
+      path: 'sobre',
+      component: () => import('@/views/AboutPage.vue')
+    }
+  ]
+}
 ]
 
 const router = createRouter({
