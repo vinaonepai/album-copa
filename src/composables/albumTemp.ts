@@ -1,54 +1,54 @@
-import { computed, ref } from "vue";
-import { stickers } from "@/data/stickers";
+import { computed, ref, watch } from "vue";
+import { useAuth } from "@/composables/useAuth";
+import {
+  listStickersForUser,
+  toggleUserSticker,
+} from "@/services/database";
 
-const lista = ref(stickers);
+const lista = ref<any[]>([]);
 
 export function useAlbum() {
+  const { usuarioLogado } = useAuth();
 
   const busca = ref("");
 
   const filtro = ref("todas");
 
-  const marcarColetada = (id: number) => {
-    const figurinha = lista.value.find(
-      (f) => f.id === id
-    );
+  async function load() {
+    const userId = usuarioLogado.value?.id || null;
+    const items = await listStickersForUser(userId, busca.value, filtro.value);
+    lista.value = items;
+  }
 
-    if (figurinha) {
-      figurinha.coletada = !figurinha.coletada;
-    }
-  };
-
-  const filtradas = computed(() => {
-
-    let resultado = lista.value.filter(
-      (item) =>
-        item.nome
-          .toLowerCase()
-          .includes(busca.value.toLowerCase()) ||
-        item.selecao
-          .toLowerCase()
-          .includes(busca.value.toLowerCase())
-    );
-
-    if (filtro.value === "coletadas") {
-      resultado = resultado.filter(
-        (f) => f.coletada
-      );
-    }
-
-    if (filtro.value === "pendentes") {
-      resultado = resultado.filter(
-        (f) => !f.coletada
-      );
-    }
-
-    return resultado;
+  // recarrega quando busca/filtro mudam
+  watch([busca, filtro], () => {
+    load();
   });
 
-  const coletadas = computed(() =>
-    lista.value.filter((f) => f.coletada)
+  // recarrega quando usuário muda (login/logout)
+  watch(
+    () => usuarioLogado.value && usuarioLogado.value.id,
+    () => {
+      load();
+    }
   );
+
+  const marcarColetada = async (id: number) => {
+    const userId = usuarioLogado.value?.id;
+    if (!userId) return;
+
+    await toggleUserSticker(userId, id);
+    // Atualiza localmente
+    const item = lista.value.find((f) => f.id === id);
+    if (item) item.coletada = !item.coletada;
+  };
+
+  const filtradas = computed(() => lista.value);
+
+  const coletadas = computed(() => lista.value.filter((f) => f.coletada));
+
+  // carregamento inicial
+  load();
 
   return {
     lista,
