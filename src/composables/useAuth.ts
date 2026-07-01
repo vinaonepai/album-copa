@@ -1,49 +1,67 @@
 import { ref } from 'vue'
+import {
+  initDatabase,
+  addUsuario,
+  realizarLogin,
+  findUsuarioById,
+} from '@/services/database'
 
 interface Usuario {
+  id?: number
   nome: string
   email: string
-  senha: string
+  senha?: string
 }
 
 const usuarioLogado = ref<Usuario | null>(null)
 
-const usuarios = ref<Usuario[]>([
-  {
-    nome: 'Admin',
-    email: 'admin@email.com',
-    senha: '123456'
+// Inicializa o DB e tenta restaurar sessão
+initDatabase().then(async () => {
+  const stored = localStorage.getItem('usuarioId')
+  if (stored) {
+    const id = Number(stored)
+    const u = await findUsuarioById(id)
+    if (u) {
+      usuarioLogado.value = {
+        id: u.id,
+        nome: u.nome,
+        email: u.email,
+      }
+    }
   }
-])
+})
 
 export function useAuth() {
-  const login = (email: string, senha: string) => {
-    const usuario = usuarios.value.find(
-      (u) => u.email === email && u.senha === senha
-    )
+  const login = async (email: string, senha: string) => {
+    const usuario = await realizarLogin(email, senha)
 
     if (usuario) {
-      usuarioLogado.value = usuario
+      usuarioLogado.value = {
+        id: usuario.id,
+        nome: usuario.nome,
+        email: usuario.email,
+      }
+
+      try {
+        localStorage.setItem('usuarioId', String(usuario.id))
+      } catch {}
+
       return true
     }
 
     return false
   }
 
-  const cadastrar = (
-    nome: string,
-    email: string,
-    senha: string
-  ) => {
-    usuarios.value.push({
-      nome,
-      email,
-      senha
-    })
+  const cadastrar = async (nome: string, email: string, senha: string) => {
+    // telefone deixado nulo por enquanto
+    await addUsuario(nome, email, null, senha)
   }
 
   const logout = () => {
     usuarioLogado.value = null
+    try {
+      localStorage.removeItem('usuarioId')
+    } catch {}
   }
 
   const resetarSenha = (email: string) => {
@@ -55,6 +73,6 @@ export function useAuth() {
     login,
     cadastrar,
     logout,
-    resetarSenha
+    resetarSenha,
   }
 }

@@ -80,8 +80,8 @@ const router = useRouter()
 
 const { login } = useAuth()
 
-function entrar() {
-  const sucesso = login(
+async function entrar() {
+  const sucesso = await login(
     email.value,
     senha.value
   )

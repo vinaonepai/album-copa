@@ -78,7 +78,7 @@ const router = useRouter()
 
 const { cadastrar } = useAuth()
 
-function criarConta() {
+async function criarConta() {
 
   if (
     !nome.value ||
@@ -94,11 +94,16 @@ function criarConta() {
     return
   }
 
-  cadastrar(
-    nome.value,
-    email.value,
-    senha.value
-  )
+  try {
+    await cadastrar(
+      nome.value,
+      email.value,
+      senha.value
+    )
+  } catch (err: any) {
+    alert(err?.message || 'Erro ao criar conta')
+    return
+  }
 
   alert('Conta criada com sucesso!')
 
