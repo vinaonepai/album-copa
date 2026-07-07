@@ -7,35 +7,44 @@ import {
 const dbName = "appdata";
 let db: SQLiteDBConnection | null = null;
 let initialized = false;
+let initializationPromise: Promise<void> | null = null;
 let useFallback = false;
 const sqliteconnection = new SQLiteConnection(CapacitorSQLite);
 
+type FiltroSticker = "todas" | "coletadas" | "pendentes";
+
 async function ensureDatabase() {
-  if (initialized && db) {
+  if (initialized) {
     return;
   }
 
+  if (initializationPromise) {
+    return initializationPromise;
+  }
+
+  initializationPromise = setupDatabase();
+  return initializationPromise;
+}
+
+async function setupDatabase() {
   try {
-    if (!db) {
-      db = await sqliteconnection.createConnection(
-        dbName,
-        false,
-        "no-encryption",
-        1,
-        false,
-      );
-    }
+    db = await sqliteconnection.createConnection(
+      dbName,
+      false,
+      "no-encryption",
+      1,
+      false,
+    );
 
     await db.open();
   } catch (err) {
-    // Capacitator web: jeep-sqlite pode não estar presente.
-    console.warn('SQLite não disponível, habilitando fallback (localStorage)', err);
+    console.warn("SQLite indisponivel, usando fallback localStorage", err);
     useFallback = true;
     initialized = true;
+    ensureFallbackTables();
     return;
   }
 
-  // Tabela de contatos (mantida)
   await db.execute(`
     CREATE TABLE IF NOT EXISTS contatos (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -45,129 +54,116 @@ async function ensureDatabase() {
     );
   `);
 
-  // Tabela de usuários (ajustada para usar email)
   await db.execute(`
     CREATE TABLE IF NOT EXISTS usuarios (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       nome TEXT NOT NULL,
       email TEXT NOT NULL UNIQUE,
       telefone TEXT,
-      senha TEXT
+      senha TEXT NOT NULL
     );
   `);
 
-  // Tabela de figurinhas
   await db.execute(`
     CREATE TABLE IF NOT EXISTS stickers (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       nome TEXT NOT NULL,
-      selecao TEXT,
+      selecao TEXT NOT NULL,
       foto TEXT,
-      raridade TEXT
+      raridade TEXT NOT NULL
     );
   `);
 
-  // Associação usuário <-> figurinha com status
   await db.execute(`
     CREATE TABLE IF NOT EXISTS user_stickers (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       user_id INTEGER NOT NULL,
       sticker_id INTEGER NOT NULL,
-      coletada INTEGER DEFAULT 0,
-      UNIQUE(user_id, sticker_id)
+      coletada INTEGER NOT NULL DEFAULT 0,
+      UNIQUE(user_id, sticker_id),
+      FOREIGN KEY(user_id) REFERENCES usuarios(id) ON DELETE CASCADE,
+      FOREIGN KEY(sticker_id) REFERENCES stickers(id) ON DELETE CASCADE
     );
   `);
 
   initialized = true;
 }
 
+function ensureFallbackTables() {
+  const keys = ["contatos", "usuarios", "stickers", "user_stickers"];
+
+  for (const key of keys) {
+    if (!localStorage.getItem(key)) {
+      localStorage.setItem(key, JSON.stringify([]));
+    }
+  }
+}
+
 function getDb() {
   if (!db) {
-    throw new Error("Banco de dados ainda não inicializado");
+    throw new Error("Banco de dados ainda nao inicializado");
   }
+
   return db;
 }
 
-export async function initDatabase() {
-  try {
-    await ensureDatabase();
-    if (useFallback) {
-      const keys = ['contatos','usuarios','stickers','user_stickers'];
-      for (const k of keys) {
-        if (!localStorage.getItem(k)) {
-          localStorage.setItem(k, JSON.stringify([]));
-        }
-      }
-    }
-    // Em ambiente de desenvolvimento, popular as figurinhas a partir dos dados locais
-    try {
-      // import.meta.env.DEV existe em Vite; protege com typeof para evitar erros
-      if (typeof import.meta !== 'undefined' && (import.meta as any).env && (import.meta as any).env.DEV) {
-        // verifica se já existem figurinhas
-        let count = 0;
-        if (useFallback) {
-          count = JSON.parse(localStorage.getItem('stickers') || '[]').length;
-        } else {
-          const res = await getDb().query('SELECT COUNT(*) as c FROM stickers');
-          count = res.values?.[0]?.c || 0;
-        }
-
-        if (count === 0) {
-          const mod = await import('@/data/stickers');
-          const seed: any[] = mod.stickers || [];
-          for (const s of seed) {
-            // foto é um caminho resolvido pelo bundler; armazenamos a string
-            await addSticker(s.nome, s.selecao, s.foto as any, s.raridade);
-          }
-        }
-      }
-    } catch (seedErr) {
-      console.warn('Seed de figurinhas falhou', seedErr);
-    }
-  } catch (error) {
-    console.error("Erro ao iniciar DB", error);
-    throw error;
-  }
+function nextFallbackId(items: Array<{ id: number }>) {
+  return Math.max(0, ...items.map((item) => item.id || 0)) + 1;
 }
 
-// Contatos (mantido)
+function normalizeText(value: string) {
+  return value.trim();
+}
+
+export async function initDatabase() {
+  await ensureDatabase();
+}
+
+// Contatos
 export async function addContato(
   nome: string,
   email: string,
   telefone: string,
 ) {
   await ensureDatabase();
+
   if (useFallback) {
-    const raw = localStorage.getItem('contatos') || '[]';
-    const arr = JSON.parse(raw);
-    const id = (arr.map((a: any) => a.id).sort((a: number,b: number)=>b-a)[0] || 0) + 1;
+    const arr = JSON.parse(localStorage.getItem("contatos") || "[]");
+    const id = nextFallbackId(arr);
     arr.push({ id, nome, email, telefone });
-    localStorage.setItem('contatos', JSON.stringify(arr));
+    localStorage.setItem("contatos", JSON.stringify(arr));
     return;
   }
-  const query = "INSERT INTO contatos (nome, email, telefone) VALUES (?, ?, ?)";
 
-  await getDb().run(query, [nome, email, telefone]);
+  await getDb().run(
+    "INSERT INTO contatos (nome, email, telefone) VALUES (?, ?, ?)",
+    [nome, email, telefone],
+  );
 }
 
 export async function listContatos() {
   await ensureDatabase();
+
   if (useFallback) {
-    return JSON.parse(localStorage.getItem('contatos') || '[]');
+    return JSON.parse(localStorage.getItem("contatos") || "[]");
   }
+
   const result = await getDb().query("SELECT * FROM contatos");
   return result.values || [];
 }
 
 export async function deleteContatoById(id: number) {
   await ensureDatabase();
+
   if (useFallback) {
-    const arr = JSON.parse(localStorage.getItem('contatos') || '[]').filter((c: any) => c.id !== id);
-    localStorage.setItem('contatos', JSON.stringify(arr));
+    const arr = JSON.parse(localStorage.getItem("contatos") || "[]").filter(
+      (contato: any) => contato.id !== id,
+    );
+    localStorage.setItem("contatos", JSON.stringify(arr));
     return;
   }
-  const query = "DELETE FROM contatos WHERE id = ?";
-  return await getDb().run(query, [id]);
+
+  return getDb().run("DELETE FROM contatos WHERE id = ?", [id]);
 }
 
 export async function updateContato(
@@ -177,34 +173,40 @@ export async function updateContato(
   telefone: string,
 ) {
   await ensureDatabase();
+
   if (useFallback) {
-    const arr = JSON.parse(localStorage.getItem('contatos') || '[]');
-    const idx = arr.findIndex((c: any) => c.id === id);
+    const arr = JSON.parse(localStorage.getItem("contatos") || "[]");
+    const idx = arr.findIndex((contato: any) => contato.id === id);
+
     if (idx >= 0) {
       arr[idx] = { id, nome, email, telefone };
-      localStorage.setItem('contatos', JSON.stringify(arr));
+      localStorage.setItem("contatos", JSON.stringify(arr));
     }
+
     return;
   }
-  const query = "UPDATE contatos SET nome = ?, email = ?, telefone = ? WHERE id = ?";
 
-  await getDb().run(query, [nome, email, telefone, id]);
+  await getDb().run(
+    "UPDATE contatos SET nome = ?, email = ?, telefone = ? WHERE id = ?",
+    [nome, email, telefone, id],
+  );
 }
 
 export async function findContatoById(id: number) {
   await ensureDatabase();
+
   if (useFallback) {
-    const arr = JSON.parse(localStorage.getItem('contatos') || '[]');
-    return arr.filter((c: any) => c.id === id);
+    const arr = JSON.parse(localStorage.getItem("contatos") || "[]");
+    return arr.filter((contato: any) => contato.id === id);
   }
-  const query = "SELECT * FROM contatos WHERE id = ?";
 
-  const result = await getDb().query(query, [id]);
-
+  const result = await getDb().query("SELECT * FROM contatos WHERE id = ?", [
+    id,
+  ]);
   return result.values || [];
 }
 
-// Usuários
+// Usuarios
 export async function addUsuario(
   nome: string,
   email: string,
@@ -212,48 +214,63 @@ export async function addUsuario(
   senha: string,
 ) {
   await ensureDatabase();
+
+  const cleanNome = normalizeText(nome);
+  const cleanEmail = normalizeText(email).toLowerCase();
+
   if (useFallback) {
-    const raw = localStorage.getItem('usuarios') || '[]';
-    const arr = JSON.parse(raw);
-    // checar duplicado por email
-    if (arr.find((u: any) => u.email === email)) {
-      const err: any = new Error('Email já cadastrado');
-      err.code = 'SQLITE_CONSTRAINT';
-      throw err;
+    const arr = JSON.parse(localStorage.getItem("usuarios") || "[]");
+
+    if (arr.some((usuario: any) => usuario.email === cleanEmail)) {
+      throw new Error("Email ja cadastrado");
     }
-    const id = (arr.map((a: any) => a.id).sort((a: number,b: number)=>b-a)[0] || 0) + 1;
-    arr.push({ id, nome, email, telefone, senha });
-    localStorage.setItem('usuarios', JSON.stringify(arr));
+
+    const id = nextFallbackId(arr);
+    arr.push({
+      id,
+      nome: cleanNome,
+      email: cleanEmail,
+      telefone,
+      senha,
+    });
+    localStorage.setItem("usuarios", JSON.stringify(arr));
     return { changes: { lastId: id } } as any;
   }
-  const query = `
-    INSERT INTO usuarios
-    (nome, email, telefone, senha)
-    VALUES (?, ?, ?, ?)
-  `;
 
-  try {
-    return await getDb().run(query, [nome, email, telefone, senha]);
-  } catch (err: any) {
-    throw err;
-  }
+  return getDb().run(
+    `
+      INSERT INTO usuarios (nome, email, telefone, senha)
+      VALUES (?, ?, ?, ?)
+    `,
+    [cleanNome, cleanEmail, telefone, senha],
+  );
 }
 
 export async function realizarLogin(email: string, senha: string) {
   await ensureDatabase();
-  if (useFallback) {
-    const arr = JSON.parse(localStorage.getItem('usuarios') || '[]');
-    return arr.find((u: any) => u.email === email && u.senha === senha) || null;
-  }
-  const query = `
-    SELECT *
-    FROM usuarios
-    WHERE email = ?
-    AND senha = ?
-    LIMIT 1
-  `;
 
-  const result = await getDb().query(query, [email, senha]);
+  const cleanEmail = normalizeText(email).toLowerCase();
+
+  if (useFallback) {
+    const arr = JSON.parse(localStorage.getItem("usuarios") || "[]");
+    return (
+      arr.find(
+        (usuario: any) =>
+          usuario.email === cleanEmail && usuario.senha === senha,
+      ) || null
+    );
+  }
+
+  const result = await getDb().query(
+    `
+      SELECT id, nome, email, telefone
+      FROM usuarios
+      WHERE email = ?
+        AND senha = ?
+      LIMIT 1
+    `,
+    [cleanEmail, senha],
+  );
 
   return result.values?.[0] || null;
 }
@@ -265,189 +282,335 @@ export async function updateUsuario(
   telefone: string,
 ) {
   await ensureDatabase();
+
+  const cleanNome = normalizeText(nome);
+  const cleanEmail = normalizeText(email).toLowerCase();
+
   if (useFallback) {
-    const arr = JSON.parse(localStorage.getItem('usuarios') || '[]');
-    const idx = arr.findIndex((u: any) => u.id === id);
+    const arr = JSON.parse(localStorage.getItem("usuarios") || "[]");
+    const idx = arr.findIndex((usuario: any) => usuario.id === id);
+
     if (idx >= 0) {
-      arr[idx].nome = nome;
-      arr[idx].email = email;
+      arr[idx].nome = cleanNome;
+      arr[idx].email = cleanEmail;
       arr[idx].telefone = telefone;
-      localStorage.setItem('usuarios', JSON.stringify(arr));
+      localStorage.setItem("usuarios", JSON.stringify(arr));
     }
+
     return;
   }
-  const query = `
-    UPDATE usuarios
-    SET nome = ?,
-        email = ?,
-        telefone = ?
-    WHERE id = ?
-  `;
 
-  return await getDb().run(query, [nome, email, telefone, id]);
+  return getDb().run(
+    `
+      UPDATE usuarios
+      SET nome = ?,
+          email = ?,
+          telefone = ?
+      WHERE id = ?
+    `,
+    [cleanNome, cleanEmail, telefone, id],
+  );
 }
 
 export async function findUsuarioById(id: number) {
   await ensureDatabase();
-  if (useFallback) {
-    const arr = JSON.parse(localStorage.getItem('usuarios') || '[]');
-    return arr.find((u: any) => u.id === id) || null;
-  }
-  const query = `
-    SELECT *
-    FROM usuarios
-    WHERE id = ?
-  `;
 
-  const result = await getDb().query(query, [id]);
+  if (useFallback) {
+    const arr = JSON.parse(localStorage.getItem("usuarios") || "[]");
+    const usuario = arr.find((item: any) => item.id === id);
+
+    if (!usuario) {
+      return null;
+    }
+
+    const { senha, ...publico } = usuario;
+    return publico;
+  }
+
+  const result = await getDb().query(
+    `
+      SELECT id, nome, email, telefone
+      FROM usuarios
+      WHERE id = ?
+    `,
+    [id],
+  );
 
   return result.values?.[0] || null;
 }
 
 export async function listUsuarios() {
   await ensureDatabase();
-  if (useFallback) {
-    return JSON.parse(localStorage.getItem('usuarios') || '[]');
-  }
-  const result = await getDb().query("SELECT * FROM usuarios");
 
+  if (useFallback) {
+    return JSON.parse(localStorage.getItem("usuarios") || "[]").map(
+      ({ senha, ...usuario }: any) => usuario,
+    );
+  }
+
+  const result = await getDb().query(
+    "SELECT id, nome, email, telefone FROM usuarios",
+  );
   return result.values || [];
 }
 
 export async function deleteUsuarioById(id: number) {
   await ensureDatabase();
+
   if (useFallback) {
-    const arr = JSON.parse(localStorage.getItem('usuarios') || '[]').filter((u: any) => u.id !== id);
-    localStorage.setItem('usuarios', JSON.stringify(arr));
+    const arr = JSON.parse(localStorage.getItem("usuarios") || "[]").filter(
+      (usuario: any) => usuario.id !== id,
+    );
+    localStorage.setItem("usuarios", JSON.stringify(arr));
     return;
   }
-  const query = "DELETE FROM usuarios WHERE id = ?";
 
-  return await getDb().run(query, [id]);
+  return getDb().run("DELETE FROM usuarios WHERE id = ?", [id]);
 }
 
-// Figurinhas / Stickers
+// Figurinhas
 export async function addSticker(
   nome: string,
   selecao: string,
   foto: string | null,
-  raridade: string | null,
+  raridade: string,
 ) {
   await ensureDatabase();
+
+  const cleanNome = normalizeText(nome);
+  const cleanSelecao = normalizeText(selecao);
+  const cleanFoto = foto ? normalizeText(foto) : null;
+  const cleanRaridade = normalizeText(raridade);
+
   if (useFallback) {
-    const arr = JSON.parse(localStorage.getItem('stickers') || '[]');
-    const id = (arr.map((a: any) => a.id).sort((a: number,b: number)=>b-a)[0] || 0) + 1;
-    arr.push({ id, nome, selecao, foto, raridade });
-    localStorage.setItem('stickers', JSON.stringify(arr));
+    const arr = JSON.parse(localStorage.getItem("stickers") || "[]");
+    const id = nextFallbackId(arr);
+    arr.push({
+      id,
+      nome: cleanNome,
+      selecao: cleanSelecao,
+      foto: cleanFoto,
+      raridade: cleanRaridade,
+    });
+    localStorage.setItem("stickers", JSON.stringify(arr));
     return { changes: { lastId: id } } as any;
   }
-  const query = `
-    INSERT INTO stickers (nome, selecao, foto, raridade)
-    VALUES (?, ?, ?, ?)
-  `;
 
-  return await getDb().run(query, [nome, selecao, foto, raridade]);
+  return getDb().run(
+    `
+      INSERT INTO stickers (nome, selecao, foto, raridade)
+      VALUES (?, ?, ?, ?)
+    `,
+    [cleanNome, cleanSelecao, cleanFoto, cleanRaridade],
+  );
 }
 
 export async function listStickersForUser(
   userId: number | null,
   busca = "",
-  filtro = "todas"
+  filtro: FiltroSticker = "todas",
 ) {
   await ensureDatabase();
+
+  const cleanBusca = normalizeText(busca).toLowerCase();
+
   if (useFallback) {
-    const stickers = JSON.parse(localStorage.getItem('stickers') || '[]');
-    const userStickers = JSON.parse(localStorage.getItem('user_stickers') || '[]');
-    const like = busca.toLowerCase();
-    let result = stickers.filter((s: any) =>
-      s.nome.toLowerCase().includes(like) || (s.selecao || '').toLowerCase().includes(like)
+    const stickers = JSON.parse(localStorage.getItem("stickers") || "[]");
+    const userStickers = JSON.parse(
+      localStorage.getItem("user_stickers") || "[]",
     );
 
-    const merged = result.map((s: any) => {
-      const us = userStickers.find((u: any) => u.user_id === userId && u.sticker_id === s.id);
-      return { ...s, coletada: !!(us && us.coletada) };
-    });
+    const merged = stickers
+      .filter((sticker: any) => {
+        const nome = String(sticker.nome || "").toLowerCase();
+        const selecao = String(sticker.selecao || "").toLowerCase();
+        return nome.includes(cleanBusca) || selecao.includes(cleanBusca);
+      })
+      .map((sticker: any) => {
+        const status = userStickers.find(
+          (item: any) =>
+            item.user_id === userId && item.sticker_id === sticker.id,
+        );
 
-    if (filtro === 'coletadas') return merged.filter((m: any) => m.coletada);
-    if (filtro === 'pendentes') return merged.filter((m: any) => !m.coletada);
+        return {
+          ...sticker,
+          coletada: Boolean(status?.coletada),
+        };
+      });
+
+    if (filtro === "coletadas") {
+      return merged.filter((sticker: any) => sticker.coletada);
+    }
+
+    if (filtro === "pendentes") {
+      return merged.filter((sticker: any) => !sticker.coletada);
+    }
+
     return merged;
   }
 
-  const like = `%${busca}%`;
-
-  let where = "WHERE (s.nome LIKE ? OR s.selecao LIKE ?)";
+  const params: any[] = [userId, `%${cleanBusca}%`, `%${cleanBusca}%`];
+  let where = `
+    WHERE (
+      LOWER(s.nome) LIKE ?
+      OR LOWER(s.selecao) LIKE ?
+    )
+  `;
 
   if (filtro === "coletadas") {
-    where += " AND COALESCE(us.coletada,0)=1";
+    where += " AND COALESCE(us.coletada, 0) = 1";
   }
 
   if (filtro === "pendentes") {
-    where += " AND COALESCE(us.coletada,0)=0";
+    where += " AND COALESCE(us.coletada, 0) = 0";
   }
 
-  // userId is used in the LEFT JOIN to bring user's status
-  const query = `
-    SELECT s.id, s.nome, s.selecao, s.foto, s.raridade,
-      COALESCE(us.coletada,0) as coletada
-    FROM stickers s
-    LEFT JOIN user_stickers us
-      ON s.id = us.sticker_id AND us.user_id = ?
-    ${where}
-    ORDER BY s.id ASC
-  `;
-
-  const params: any[] = [userId, like, like];
-
-  const result = await getDb().query(query, params);
-
-  return (
-    (result.values || []).map((r: any) => ({
-      id: r.id,
-      nome: r.nome,
-      selecao: r.selecao,
-      foto: r.foto,
-      raridade: r.raridade,
-      coletada: !!r.coletada,
-    }))
+  const result = await getDb().query(
+    `
+      SELECT
+        s.id,
+        s.nome,
+        s.selecao,
+        s.foto,
+        s.raridade,
+        COALESCE(us.coletada, 0) as coletada
+      FROM stickers s
+      LEFT JOIN user_stickers us
+        ON s.id = us.sticker_id
+       AND us.user_id = ?
+      ${where}
+      ORDER BY s.id ASC
+    `,
+    params,
   );
+
+  return (result.values || []).map((row: any) => ({
+    id: row.id,
+    nome: row.nome,
+    selecao: row.selecao,
+    foto: row.foto,
+    raridade: row.raridade,
+    coletada: Boolean(row.coletada),
+  }));
 }
 
 export async function toggleUserSticker(userId: number, stickerId: number) {
   await ensureDatabase();
+
   if (useFallback) {
-    const arr = JSON.parse(localStorage.getItem('user_stickers') || '[]');
-    const idx = arr.findIndex((u: any) => u.user_id === userId && u.sticker_id === stickerId);
+    const arr = JSON.parse(localStorage.getItem("user_stickers") || "[]");
+    const idx = arr.findIndex(
+      (item: any) => item.user_id === userId && item.sticker_id === stickerId,
+    );
+
     if (idx >= 0) {
       arr[idx].coletada = arr[idx].coletada ? 0 : 1;
     } else {
-      arr.push({ id: (arr.map((a: any) => a.id).sort((a: number,b: number)=>b-a)[0] || 0) + 1, user_id: userId, sticker_id: stickerId, coletada: 1 });
+      arr.push({
+        id: nextFallbackId(arr),
+        user_id: userId,
+        sticker_id: stickerId,
+        coletada: 1,
+      });
     }
-    localStorage.setItem('user_stickers', JSON.stringify(arr));
+
+    localStorage.setItem("user_stickers", JSON.stringify(arr));
     return;
   }
 
-  const select = `SELECT coletada FROM user_stickers WHERE user_id = ? AND sticker_id = ? LIMIT 1`;
-  const sel = await getDb().query(select, [userId, stickerId]);
+  const existing = await getDb().query(
+    `
+      SELECT coletada
+      FROM user_stickers
+      WHERE user_id = ?
+        AND sticker_id = ?
+      LIMIT 1
+    `,
+    [userId, stickerId],
+  );
 
-  if (sel.values && sel.values.length > 0) {
-    const atual = sel.values[0].coletada ? 1 : 0;
-    const novo = atual === 1 ? 0 : 1;
-    const update = `UPDATE user_stickers SET coletada = ? WHERE user_id = ? AND sticker_id = ?`;
-    return await getDb().run(update, [novo, userId, stickerId]);
+  if (existing.values?.length) {
+    const atual = existing.values[0].coletada ? 1 : 0;
+
+    return getDb().run(
+      `
+        UPDATE user_stickers
+        SET coletada = ?
+        WHERE user_id = ?
+          AND sticker_id = ?
+      `,
+      [atual ? 0 : 1, userId, stickerId],
+    );
   }
 
-  const insert = `INSERT INTO user_stickers (user_id, sticker_id, coletada) VALUES (?, ?, 1)`;
-  return await getDb().run(insert, [userId, stickerId]);
+  return getDb().run(
+    `
+      INSERT INTO user_stickers (user_id, sticker_id, coletada)
+      VALUES (?, ?, 1)
+    `,
+    [userId, stickerId],
+  );
+}
+
+export async function getStickerStatsForUser(userId: number | null) {
+  await ensureDatabase();
+
+  if (useFallback) {
+    const stickers = JSON.parse(localStorage.getItem("stickers") || "[]");
+    const userStickers = JSON.parse(
+      localStorage.getItem("user_stickers") || "[]",
+    );
+
+    const coletadas = userStickers.filter(
+      (item: any) => item.user_id === userId && item.coletada === 1,
+    ).length;
+
+    return {
+      total: stickers.length,
+      coletadas,
+    };
+  }
+
+  const result = await getDb().query(
+    `
+      SELECT
+        COUNT(s.id) as total,
+        SUM(CASE WHEN COALESCE(us.coletada, 0) = 1 THEN 1 ELSE 0 END) as coletadas
+      FROM stickers s
+      LEFT JOIN user_stickers us
+        ON s.id = us.sticker_id
+       AND us.user_id = ?
+    `,
+    [userId],
+  );
+
+  const row = result.values?.[0];
+
+  return {
+    total: row?.total || 0,
+    coletadas: row?.coletadas || 0,
+  };
 }
 
 export async function getUserCollectedCount(userId: number) {
   await ensureDatabase();
+
   if (useFallback) {
-    const arr = JSON.parse(localStorage.getItem('user_stickers') || '[]');
-    return arr.filter((u: any) => u.user_id === userId && u.coletada === 1).length;
+    const arr = JSON.parse(localStorage.getItem("user_stickers") || "[]");
+    return arr.filter(
+      (item: any) => item.user_id === userId && item.coletada === 1,
+    ).length;
   }
-  const query = `SELECT COUNT(*) as total FROM user_stickers WHERE user_id = ? AND coletada = 1`;
-  const res = await getDb().query(query, [userId]);
-  return res.values?.[0]?.total || 0;
+
+  const result = await getDb().query(
+    `
+      SELECT COUNT(*) as total
+      FROM user_stickers
+      WHERE user_id = ?
+        AND coletada = 1
+    `,
+    [userId],
+  );
+
+  return result.values?.[0]?.total || 0;
 }
- 

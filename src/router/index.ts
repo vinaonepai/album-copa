@@ -1,5 +1,6 @@
 import { createRouter, createWebHistory } from '@ionic/vue-router'
 import { RouteRecordRaw } from 'vue-router'
+import { authReady, useAuth } from '@/composables/useAuth'
 import TabsPage from '../views/TabsPage.vue'
 
 const routes: Array<RouteRecordRaw> = [
@@ -46,6 +47,21 @@ const routes: Array<RouteRecordRaw> = [
 const router = createRouter({
   history: createWebHistory(import.meta.env.BASE_URL),
   routes
+})
+
+router.beforeEach(async (to) => {
+  await authReady
+
+  const { usuarioLogado } = useAuth()
+  const isLogged = Boolean(usuarioLogado.value?.id)
+
+  if (to.path.startsWith('/tabs') && !isLogged) {
+    return '/login'
+  }
+
+  if (to.path === '/login' && isLogged) {
+    return '/tabs/album'
+  }
 })
 
 export default router

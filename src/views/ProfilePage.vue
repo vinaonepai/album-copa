@@ -30,26 +30,24 @@
             <div class="estatisticas">
 
               <div class="stat">
-                <h2>{{ coletadas.length }}</h2>
+                <h2>{{ totalColetadas }}</h2>
                 <span>Obtidas</span>
               </div>
 
               <div class="stat">
-                <h2>{{ lista.length }}</h2>
+                <h2>{{ totalFigurinhas }}</h2>
                 <span>Total</span>
               </div>
 
             </div>
 
             <IonProgressBar
-              :value="coletadas.length / lista.length"
+              :value="progresso"
             />
 
             <p class="progresso-texto">
               {{
-                Math.round(
-                  (coletadas.length / lista.length) * 100
-                )
+                Math.round(progresso * 100)
               }}% Completo
             </p>
 
@@ -116,8 +114,9 @@ const router = useRouter()
 const { usuarioLogado, logout } = useAuth()
 
 const {
-  lista,
-  coletadas
+  totalFigurinhas,
+  totalColetadas,
+  progresso
 } = useAlbum()
 
 const mostrarAlerta = ref(false)
