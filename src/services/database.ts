@@ -13,6 +13,99 @@ const sqliteconnection = new SQLiteConnection(CapacitorSQLite);
 
 type FiltroSticker = "todas" | "coletadas" | "pendentes";
 
+type AchievementDefinition = {
+  codigo: string;
+  nome: string;
+  descricao: string;
+  icone: string;
+  tipo: "total" | "rara" | "brilhante" | "percentual" | "colecao";
+  valor: number;
+  colecao?: string | null;
+};
+
+const achievementDefinitions: AchievementDefinition[] = [
+  {
+    codigo: "primeira-figurinha",
+    nome: "Primeira Figurinha",
+    descricao: "Desbloquear ao coletar a primeira figurinha.",
+    icone: "medal",
+    tipo: "total",
+    valor: 1,
+  },
+  {
+    codigo: "iniciante",
+    nome: "Iniciante",
+    descricao: "Coletar 10 figurinhas.",
+    icone: "ribbon",
+    tipo: "total",
+    valor: 10,
+  },
+  {
+    codigo: "colecionador",
+    nome: "Colecionador",
+    descricao: "Coletar 25 figurinhas.",
+    icone: "albums",
+    tipo: "total",
+    valor: 25,
+  },
+  {
+    codigo: "album-em-construcao",
+    nome: "Album em Construcao",
+    descricao: "Coletar 50 figurinhas.",
+    icone: "construct",
+    tipo: "total",
+    valor: 50,
+  },
+  {
+    codigo: "cacador-de-raras",
+    nome: "Cacador de Raras",
+    descricao: "Coletar 5 figurinhas raras.",
+    icone: "sparkles",
+    tipo: "rara",
+    valor: 5,
+  },
+  {
+    codigo: "especialista-em-raras",
+    nome: "Especialista em Raras",
+    descricao: "Coletar 15 figurinhas raras.",
+    icone: "diamond",
+    tipo: "rara",
+    valor: 15,
+  },
+  {
+    codigo: "brilho-inicial",
+    nome: "Brilho Inicial",
+    descricao: "Coletar 3 figurinhas brilhantes.",
+    icone: "star",
+    tipo: "brilhante",
+    valor: 3,
+  },
+  {
+    codigo: "mestre-das-brilhantes",
+    nome: "Mestre das Brilhantes",
+    descricao: "Coletar 10 figurinhas brilhantes.",
+    icone: "trophy",
+    tipo: "brilhante",
+    valor: 10,
+  },
+  {
+    codigo: "album-quase-completo",
+    nome: "Album Quase Completo",
+    descricao: "Completar 80% do album.",
+    icone: "podium",
+    tipo: "percentual",
+    valor: 80,
+  },
+  {
+    codigo: "campeao-da-copa",
+    nome: "Campeao da Copa",
+    descricao: "Completar 100% do album.",
+    icone: "football",
+    tipo: "percentual",
+    valor: 100,
+  },
+];
+
 async function ensureDatabase() {
   if (initialized) {
     return;
@@ -86,17 +179,55 @@ async function setupDatabase() {
     );
   `);
 
+  await db.execute(`
+    CREATE TABLE IF NOT EXISTS achievements (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      codigo TEXT NOT NULL UNIQUE,
+      nome TEXT NOT NULL,
+      descricao TEXT NOT NULL,
+      icone TEXT NOT NULL,
+      tipo TEXT NOT NULL,
+      valor INTEGER NOT NULL DEFAULT 0,
+      colecao TEXT,
+      desbloqueada INTEGER NOT NULL DEFAULT 0,
+      data_desbloqueio TEXT
+    );
+  `);
+
+  await db.execute(`
+    CREATE TABLE IF NOT EXISTS user_achievements (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      user_id INTEGER NOT NULL,
+      achievement_id INTEGER NOT NULL,
+      data_desbloqueio TEXT NOT NULL,
+      UNIQUE(user_id, achievement_id),
+      FOREIGN KEY(user_id) REFERENCES usuarios(id) ON DELETE CASCADE,
+      FOREIGN KEY(achievement_id) REFERENCES achievements(id) ON DELETE CASCADE
+    );
+  `);
+
+  await seedAchievements();
+
   initialized = true;
 }
 
 function ensureFallbackTables() {
-  const keys = ["contatos", "usuarios", "stickers", "user_stickers"];
+  const keys = [
+    "contatos",
+    "usuarios",
+    "stickers",
+    "user_stickers",
+    "achievements",
+    "user_achievements",
+  ];
 
   for (const key of keys) {
     if (!localStorage.getItem(key)) {
       localStorage.setItem(key, JSON.stringify([]));
     }
   }
+
+  seedFallbackAchievements();
 }
 
 function getDb() {
@@ -113,6 +244,159 @@ function nextFallbackId(items: Array<{ id: number }>) {
 
 function normalizeText(value: string) {
   return value.trim();
+}
+
+function normalizeAchievementCode(value: string) {
+  return value
+    .trim()
+    .toLowerCase()
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-+|-+$/g, "");
+}
+
+function seedFallbackAchievements() {
+  const arr = JSON.parse(localStorage.getItem("achievements") || "[]");
+
+  for (const achievement of achievementDefinitions) {
+    const existing = arr.find((item: any) => item.codigo === achievement.codigo);
+
+    if (existing) {
+      existing.nome = achievement.nome;
+      existing.descricao = achievement.descricao;
+      existing.icone = achievement.icone;
+      existing.tipo = achievement.tipo;
+      existing.valor = achievement.valor;
+      existing.colecao = achievement.colecao || null;
+      continue;
+    }
+
+    arr.push({
+      id: nextFallbackId(arr),
+      ...achievement,
+      colecao: achievement.colecao || null,
+      desbloqueada: 0,
+      data_desbloqueio: null,
+    });
+  }
+
+  localStorage.setItem("achievements", JSON.stringify(arr));
+}
+
+async function seedAchievements() {
+  for (const achievement of achievementDefinitions) {
+    await getDb().run(
+      `
+        INSERT INTO achievements (
+          codigo,
+          nome,
+          descricao,
+          icone,
+          tipo,
+          valor,
+          colecao
+        )
+        VALUES (?, ?, ?, ?, ?, ?, ?)
+        ON CONFLICT(codigo) DO UPDATE SET
+          nome = excluded.nome,
+          descricao = excluded.descricao,
+          icone = excluded.icone,
+          tipo = excluded.tipo,
+          valor = excluded.valor,
+          colecao = excluded.colecao
+      `,
+      [
+        achievement.codigo,
+        achievement.nome,
+        achievement.descricao,
+        achievement.icone,
+        achievement.tipo,
+        achievement.valor,
+        achievement.colecao || null,
+      ],
+    );
+  }
+}
+
+async function syncCollectionAchievements() {
+  await ensureDatabase();
+
+  if (useFallback) {
+    const stickers = JSON.parse(localStorage.getItem("stickers") || "[]");
+    const achievements = JSON.parse(localStorage.getItem("achievements") || "[]");
+    const collections = Array.from(
+      new Set(stickers.map((sticker: any) => sticker.selecao).filter(Boolean)),
+    );
+
+    for (const collection of collections) {
+      const codigo = `colecao-${normalizeAchievementCode(String(collection))}`;
+      const existing = achievements.find((item: any) => item.codigo === codigo);
+
+      if (existing) {
+        existing.nome = `Colecao ${collection}`;
+        existing.descricao = `Completar a colecao ${collection}.`;
+        continue;
+      }
+
+      achievements.push({
+        id: nextFallbackId(achievements),
+        codigo,
+        nome: `Colecao ${collection}`,
+        descricao: `Completar a colecao ${collection}.`,
+        icone: "shield-checkmark",
+        tipo: "colecao",
+        valor: 100,
+        colecao: collection,
+        desbloqueada: 0,
+        data_desbloqueio: null,
+      });
+    }
+
+    localStorage.setItem("achievements", JSON.stringify(achievements));
+    return;
+  }
+
+  const result = await getDb().query(`
+    SELECT DISTINCT selecao
+    FROM stickers
+    WHERE selecao IS NOT NULL
+      AND TRIM(selecao) <> ''
+  `);
+
+  for (const row of result.values || []) {
+    const colecao = row.selecao;
+    const codigo = `colecao-${normalizeAchievementCode(String(colecao))}`;
+
+    await getDb().run(
+      `
+        INSERT INTO achievements (
+          codigo,
+          nome,
+          descricao,
+          icone,
+          tipo,
+          valor,
+          colecao
+        )
+        VALUES (?, ?, ?, ?, 'colecao', 100, ?)
+        ON CONFLICT(codigo) DO UPDATE SET
+          nome = excluded.nome,
+          descricao = excluded.descricao,
+          icone = excluded.icone,
+          tipo = excluded.tipo,
+          valor = excluded.valor,
+          colecao = excluded.colecao
+      `,
+      [
+        codigo,
+        `Colecao ${colecao}`,
+        `Completar a colecao ${colecao}.`,
+        "shield-checkmark",
+        colecao,
+      ],
+    );
+  }
 }
 
 export async function initDatabase() {
@@ -515,6 +799,7 @@ export async function toggleUserSticker(userId: number, stickerId: number) {
     }
 
     localStorage.setItem("user_stickers", JSON.stringify(arr));
+    await recalculateAchievementsForUser(userId);
     return;
   }
 
@@ -532,7 +817,7 @@ export async function toggleUserSticker(userId: number, stickerId: number) {
   if (existing.values?.length) {
     const atual = existing.values[0].coletada ? 1 : 0;
 
-    return getDb().run(
+    await getDb().run(
       `
         UPDATE user_stickers
         SET coletada = ?
@@ -541,15 +826,248 @@ export async function toggleUserSticker(userId: number, stickerId: number) {
       `,
       [atual ? 0 : 1, userId, stickerId],
     );
+    await recalculateAchievementsForUser(userId);
+    return;
   }
 
-  return getDb().run(
+  await getDb().run(
     `
       INSERT INTO user_stickers (user_id, sticker_id, coletada)
       VALUES (?, ?, 1)
     `,
     [userId, stickerId],
   );
+  await recalculateAchievementsForUser(userId);
+}
+
+export async function recalculateAchievementsForUser(userId: number) {
+  await ensureDatabase();
+  await syncCollectionAchievements();
+
+  if (useFallback) {
+    const achievements = JSON.parse(localStorage.getItem("achievements") || "[]");
+    const userAchievements = JSON.parse(
+      localStorage.getItem("user_achievements") || "[]",
+    );
+    const stickers = JSON.parse(localStorage.getItem("stickers") || "[]");
+    const userStickers = JSON.parse(
+      localStorage.getItem("user_stickers") || "[]",
+    );
+    const collectedIds = new Set(
+      userStickers
+        .filter((item: any) => item.user_id === userId && item.coletada === 1)
+        .map((item: any) => item.sticker_id),
+    );
+    const collectedStickers = stickers.filter((sticker: any) =>
+      collectedIds.has(sticker.id),
+    );
+    const total = stickers.length;
+    const collectedTotal = collectedStickers.length;
+    const rareTotal = collectedStickers.filter(
+      (sticker: any) => String(sticker.raridade).toLowerCase() === "rara",
+    ).length;
+    const shinyTotal = collectedStickers.filter(
+      (sticker: any) => String(sticker.raridade).toLowerCase() === "brilhante",
+    ).length;
+    const completion = total ? (collectedTotal / total) * 100 : 0;
+    let changed = false;
+
+    for (const achievement of achievements) {
+      const alreadyUnlocked = userAchievements.some(
+        (item: any) =>
+          item.user_id === userId && item.achievement_id === achievement.id,
+      );
+
+      if (alreadyUnlocked) {
+        continue;
+      }
+
+      let shouldUnlock = false;
+
+      if (achievement.tipo === "total") {
+        shouldUnlock = collectedTotal >= achievement.valor;
+      } else if (achievement.tipo === "rara") {
+        shouldUnlock = rareTotal >= achievement.valor;
+      } else if (achievement.tipo === "brilhante") {
+        shouldUnlock = shinyTotal >= achievement.valor;
+      } else if (achievement.tipo === "percentual") {
+        shouldUnlock = completion >= achievement.valor;
+      } else if (achievement.tipo === "colecao" && achievement.colecao) {
+        const collectionStickers = stickers.filter(
+          (sticker: any) => sticker.selecao === achievement.colecao,
+        );
+        shouldUnlock =
+          collectionStickers.length > 0 &&
+          collectionStickers.every((sticker: any) => collectedIds.has(sticker.id));
+      }
+
+      if (shouldUnlock) {
+        userAchievements.push({
+          id: nextFallbackId(userAchievements),
+          user_id: userId,
+          achievement_id: achievement.id,
+          data_desbloqueio: new Date().toISOString(),
+        });
+        changed = true;
+      }
+    }
+
+    if (changed) {
+      localStorage.setItem(
+        "user_achievements",
+        JSON.stringify(userAchievements),
+      );
+    }
+
+    return;
+  }
+
+  const statsResult = await getDb().query(
+    `
+      SELECT
+        COUNT(s.id) as total,
+        SUM(CASE WHEN COALESCE(us.coletada, 0) = 1 THEN 1 ELSE 0 END) as coletadas,
+        SUM(CASE WHEN COALESCE(us.coletada, 0) = 1 AND LOWER(s.raridade) = 'rara' THEN 1 ELSE 0 END) as raras,
+        SUM(CASE WHEN COALESCE(us.coletada, 0) = 1 AND LOWER(s.raridade) = 'brilhante' THEN 1 ELSE 0 END) as brilhantes
+      FROM stickers s
+      LEFT JOIN user_stickers us
+        ON s.id = us.sticker_id
+       AND us.user_id = ?
+    `,
+    [userId],
+  );
+  const stats = statsResult.values?.[0] || {};
+  const total = Number(stats.total || 0);
+  const coletadas = Number(stats.coletadas || 0);
+  const raras = Number(stats.raras || 0);
+  const brilhantes = Number(stats.brilhantes || 0);
+  const percentual = total ? (coletadas / total) * 100 : 0;
+
+  const achievementsResult = await getDb().query(`
+    SELECT *
+    FROM achievements
+    ORDER BY id ASC
+  `);
+
+  for (const achievement of achievementsResult.values || []) {
+    const unlockedResult = await getDb().query(
+      `
+        SELECT id
+        FROM user_achievements
+        WHERE user_id = ?
+          AND achievement_id = ?
+        LIMIT 1
+      `,
+      [userId, achievement.id],
+    );
+
+    if (unlockedResult.values?.length) {
+      continue;
+    }
+
+    let shouldUnlock = false;
+
+    if (achievement.tipo === "total") {
+      shouldUnlock = coletadas >= achievement.valor;
+    } else if (achievement.tipo === "rara") {
+      shouldUnlock = raras >= achievement.valor;
+    } else if (achievement.tipo === "brilhante") {
+      shouldUnlock = brilhantes >= achievement.valor;
+    } else if (achievement.tipo === "percentual") {
+      shouldUnlock = percentual >= achievement.valor;
+    } else if (achievement.tipo === "colecao" && achievement.colecao) {
+      const collectionResult = await getDb().query(
+        `
+          SELECT
+            COUNT(s.id) as total,
+            SUM(CASE WHEN COALESCE(us.coletada, 0) = 1 THEN 1 ELSE 0 END) as coletadas
+          FROM stickers s
+          LEFT JOIN user_stickers us
+            ON s.id = us.sticker_id
+           AND us.user_id = ?
+          WHERE s.selecao = ?
+        `,
+        [userId, achievement.colecao],
+      );
+      const collectionStats = collectionResult.values?.[0] || {};
+      const collectionTotal = Number(collectionStats.total || 0);
+      const collectionCollected = Number(collectionStats.coletadas || 0);
+      shouldUnlock =
+        collectionTotal > 0 && collectionCollected >= collectionTotal;
+    }
+
+    if (shouldUnlock) {
+      await getDb().run(
+        `
+          INSERT OR IGNORE INTO user_achievements (
+            user_id,
+            achievement_id,
+            data_desbloqueio
+          )
+          VALUES (?, ?, ?)
+        `,
+        [userId, achievement.id, new Date().toISOString()],
+      );
+    }
+  }
+}
+
+export async function listAchievementsForUser(userId: number) {
+  await ensureDatabase();
+  await syncCollectionAchievements();
+  await recalculateAchievementsForUser(userId);
+
+  if (useFallback) {
+    const achievements = JSON.parse(localStorage.getItem("achievements") || "[]");
+    const userAchievements = JSON.parse(
+      localStorage.getItem("user_achievements") || "[]",
+    );
+
+    return achievements
+      .map((achievement: any) => {
+        const unlocked = userAchievements.find(
+          (item: any) =>
+            item.user_id === userId && item.achievement_id === achievement.id,
+        );
+
+        return {
+          id: achievement.id,
+          nome: achievement.nome,
+          descricao: achievement.descricao,
+          icone: achievement.icone,
+          desbloqueada: Boolean(unlocked),
+          data_desbloqueio: unlocked?.data_desbloqueio || null,
+        };
+      })
+      .sort((a: any, b: any) => Number(b.desbloqueada) - Number(a.desbloqueada));
+  }
+
+  const result = await getDb().query(
+    `
+      SELECT
+        a.id,
+        a.nome,
+        a.descricao,
+        a.icone,
+        CASE WHEN ua.id IS NULL THEN 0 ELSE 1 END as desbloqueada,
+        ua.data_desbloqueio
+      FROM achievements a
+      LEFT JOIN user_achievements ua
+        ON a.id = ua.achievement_id
+       AND ua.user_id = ?
+      ORDER BY desbloqueada DESC, a.id ASC
+    `,
+    [userId],
+  );
+
+  return (result.values || []).map((achievement: any) => ({
+    id: achievement.id,
+    nome: achievement.nome,
+    descricao: achievement.descricao,
+    icone: achievement.icone,
+    desbloqueada: Boolean(achievement.desbloqueada),
+    data_desbloqueio: achievement.data_desbloqueio || null,
+  }));
 }
 
 export async function getStickerStatsForUser(userId: number | null) {

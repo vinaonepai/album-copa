@@ -16,6 +16,14 @@
         </IonTabButton>
 
         <IonTabButton
+          tab="conquistas"
+          href="/tabs/conquistas"
+        >
+          <IonIcon :icon="trophyOutline" />
+          <IonLabel>Conquistas</IonLabel>
+        </IonTabButton>
+
+        <IonTabButton
           tab="perfil"
           href="/tabs/perfil"
         >
@@ -52,6 +60,7 @@ import {
 import {
   imagesOutline,
   personOutline,
-  informationCircleOutline
+  informationCircleOutline,
+  trophyOutline
 } from 'ionicons/icons'
 </script>
