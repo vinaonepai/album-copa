@@ -38,7 +38,7 @@
   <ion-alert
   :is-open="deleteAlert.open"
   header="Excluir contato"
-  :message="Tem certeza que deseja excluir esse contato?"
+  message="Tem certeza que deseja excluir esse contato?"
   :buttons="[
     { text: 'Cancelar', role: 'cancel', handler:
       closeDeleteAlert },
@@ -123,6 +123,11 @@ function closeEditAlert() {
     editAlert.value.open = false
     editAlert.value.error = ''
 }
+
+function closeDeleteAlert() {
+  deleteAlert.value.open = false
+  deleteAlert.value.contatoId = null
+}
  
 async function salvarEdicao(values: any) {
  if (!editAlert.value.data.id) {
@@ -130,7 +135,7 @@ async function salvarEdicao(values: any) {
  }
  
  const nome = values?.nome ?? editAlert.value.data.nome
- const email = values?.email ?? editAlert.value.data.id
+ const email = values?.email ?? editAlert.value.data.email
  const telefone = values?.telefone ?? editAlert.value.data.telefone
  
  if (!nome || !email) {
@@ -144,5 +149,24 @@ async function salvarEdicao(values: any) {
  load()
  return true
 }
+
+async function excluirContato() {
+  if (!deleteAlert.value.contatoId) {
+    return
+  }
+
+  await deleteContatoById(deleteAlert.value.contatoId)
+  closeDeleteAlert()
+  load()
+}
+
+onMounted(() => {
+  load()
+  window.addEventListener("contato-salvo", handleContatoSalvo)
+})
+
+onBeforeUnmount(() => {
+  window.removeEventListener("contato-salvo", handleContatoSalvo)
+})
  
 </script>

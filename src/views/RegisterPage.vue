@@ -20,6 +20,7 @@
 
           <IonInput
             v-model="email"
+            type="email"
             label="E-mail"
             label-placement="floating"
             fill="outline"
@@ -81,8 +82,8 @@ const { cadastrar } = useAuth()
 async function criarConta() {
 
   if (
-    !nome.value ||
-    !email.value ||
+    !nome.value.trim() ||
+    !email.value.trim() ||
     !senha.value
   ) {
     alert('Preencha todos os campos')
@@ -96,8 +97,8 @@ async function criarConta() {
 
   try {
     await cadastrar(
-      nome.value,
-      email.value,
+      nome.value.trim(),
+      email.value.trim(),
       senha.value
     )
   } catch (err: any) {

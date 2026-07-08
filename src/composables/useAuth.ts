@@ -1,72 +1,73 @@
-import { ref } from 'vue'
+import { ref } from "vue";
 import {
   initDatabase,
   addUsuario,
   realizarLogin,
   findUsuarioById,
-} from '@/services/database'
+} from "@/services/database";
 
 interface Usuario {
-  id?: number
-  nome: string
-  email: string
-  senha?: string
+  id?: number;
+  nome: string;
+  email: string;
 }
 
-const usuarioLogado = ref<Usuario | null>(null)
+const usuarioLogado = ref<Usuario | null>(null);
 
-// Inicializa o DB e tenta restaurar sessão
-initDatabase().then(async () => {
-  const stored = localStorage.getItem('usuarioId')
-  if (stored) {
-    const id = Number(stored)
-    const u = await findUsuarioById(id)
-    if (u) {
-      usuarioLogado.value = {
-        id: u.id,
-        nome: u.nome,
-        email: u.email,
-      }
-    }
+export const authReady = initDatabase().then(async () => {
+  const stored = localStorage.getItem("usuarioId");
+
+  if (!stored) {
+    return;
   }
-})
+
+  const usuario = await findUsuarioById(Number(stored));
+
+  if (!usuario) {
+    localStorage.removeItem("usuarioId");
+    return;
+  }
+
+  usuarioLogado.value = {
+    id: usuario.id,
+    nome: usuario.nome,
+    email: usuario.email,
+  };
+});
 
 export function useAuth() {
   const login = async (email: string, senha: string) => {
-    const usuario = await realizarLogin(email, senha)
+    await authReady;
 
-    if (usuario) {
-      usuarioLogado.value = {
-        id: usuario.id,
-        nome: usuario.nome,
-        email: usuario.email,
-      }
+    const usuario = await realizarLogin(email, senha);
 
-      try {
-        localStorage.setItem('usuarioId', String(usuario.id))
-      } catch {}
-
-      return true
+    if (!usuario) {
+      return false;
     }
 
-    return false
-  }
+    usuarioLogado.value = {
+      id: usuario.id,
+      nome: usuario.nome,
+      email: usuario.email,
+    };
+
+    localStorage.setItem("usuarioId", String(usuario.id));
+    return true;
+  };
 
   const cadastrar = async (nome: string, email: string, senha: string) => {
-    // telefone deixado nulo por enquanto
-    await addUsuario(nome, email, null, senha)
-  }
+    await authReady;
+    await addUsuario(nome, email, null, senha);
+  };
 
   const logout = () => {
-    usuarioLogado.value = null
-    try {
-      localStorage.removeItem('usuarioId')
-    } catch {}
-  }
+    usuarioLogado.value = null;
+    localStorage.removeItem("usuarioId");
+  };
 
   const resetarSenha = (email: string) => {
-    return `Email enviado para ${email}`
-  }
+    return `Email enviado para ${email}`;
+  };
 
   return {
     usuarioLogado,
@@ -74,5 +75,5 @@ export function useAuth() {
     cadastrar,
     logout,
     resetarSenha,
-  }
+  };
 }

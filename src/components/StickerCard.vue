@@ -7,10 +7,18 @@
   >
 
     <img
+      v-if="sticker.foto"
       class="foto-jogador"
       :src="sticker.foto"
       alt="Jogador"
     />
+
+    <div
+      v-else
+      class="foto-placeholder"
+    >
+      {{ sticker.nome.slice(0, 1).toUpperCase() }}
+    </div>
 
     <IonCardHeader>
 
@@ -87,7 +95,7 @@ interface Sticker {
   id: number
   nome: string
   selecao: string
-  foto: string
+  foto: string | null
   raridade: string
   coletada: boolean
 }
@@ -137,6 +145,18 @@ defineEmits<{
   object-fit: contain;
   background: #0f172a;
   padding: 10px;
+}
+
+.foto-placeholder {
+  width: 100%;
+  height: 420px;
+  background: #0f172a;
+  color: #facc15;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 96px;
+  font-weight: 800;
 }
 
 ion-card-title {

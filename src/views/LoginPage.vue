@@ -13,6 +13,7 @@
 
           <IonInput
             v-model="email"
+            type="email"
             label="E-mail"
             label-placement="floating"
             fill="outline"
@@ -81,8 +82,13 @@ const router = useRouter()
 const { login } = useAuth()
 
 async function entrar() {
+  if (!email.value.trim() || !senha.value) {
+    alert('Preencha e-mail e senha')
+    return
+  }
+
   const sucesso = await login(
-    email.value,
+    email.value.trim(),
     senha.value
   )
 
