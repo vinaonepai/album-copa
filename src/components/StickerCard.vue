@@ -2,7 +2,8 @@
   <IonCard
     class="figurinha"
     :class="{
-      coletada: sticker.coletada
+      coletada: sticker.coletada,
+      favorita: sticker.favorite
     }"
   >
 
@@ -21,6 +22,27 @@
     </div>
 
     <IonCardHeader>
+      <div class="card-topo">
+        <IonChip
+          v-if="sticker.favorite"
+          color="warning"
+        >
+          <IonIcon :icon="star" />
+          Favorita
+        </IonChip>
+
+        <IonButton
+          fill="clear"
+          class="favorito-botao"
+          :color="sticker.favorite ? 'warning' : 'medium'"
+          @click="$emit('favorite', sticker.id)"
+        >
+          <IonIcon
+            slot="icon-only"
+            :icon="sticker.favorite ? star : starOutline"
+          />
+        </IonButton>
+      </div>
 
       <IonCardTitle>
         {{ sticker.nome }}
@@ -65,6 +87,16 @@
 
       <br><br>
 
+      <IonChip
+        v-if="sticker.coletada && sticker.collected_at"
+        color="success"
+      >
+        <IonIcon :icon="calendarOutline" />
+        {{ formatarData(sticker.collected_at) }}
+      </IonChip>
+
+      <br v-if="sticker.coletada && sticker.collected_at"><br v-if="sticker.coletada && sticker.collected_at">
+
       <IonButton
         expand="block"
         @click="$emit('toggle', sticker.id)"
@@ -88,8 +120,15 @@ import {
   IonCardTitle,
   IonCardContent,
   IonBadge,
-  IonButton
+  IonButton,
+  IonChip,
+  IonIcon
 } from '@ionic/vue'
+import {
+  calendarOutline,
+  star,
+  starOutline
+} from 'ionicons/icons'
 
 interface Sticker {
   id: number
@@ -98,6 +137,8 @@ interface Sticker {
   foto: string | null
   raridade: string
   coletada: boolean
+  favorite: boolean
+  collected_at: string | null
 }
 
 defineProps<{
@@ -106,7 +147,15 @@ defineProps<{
 
 defineEmits<{
   (e: 'toggle', id: number): void
+  (e: 'favorite', id: number): void
 }>()
+
+function formatarData(value: string) {
+  return new Intl.DateTimeFormat('pt-BR', {
+    dateStyle: 'short',
+    timeStyle: 'short'
+  }).format(new Date(value))
+}
 </script>
 
 <style scoped>
@@ -137,6 +186,21 @@ defineEmits<{
 
 .coletada {
   border: 2px solid #22c55e;
+}
+
+.favorita {
+  box-shadow: inset 0 0 0 1px rgba(250, 204, 21, .45);
+}
+
+.card-topo {
+  align-items: center;
+  display: flex;
+  justify-content: space-between;
+  min-height: 40px;
+}
+
+.favorito-botao {
+  margin-left: auto;
 }
 
 .foto-jogador {

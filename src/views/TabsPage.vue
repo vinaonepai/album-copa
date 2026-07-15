@@ -24,6 +24,14 @@
         </IonTabButton>
 
         <IonTabButton
+          tab="estatisticas"
+          href="/tabs/estatisticas"
+        >
+          <IonIcon :icon="statsChartOutline" />
+          <IonLabel>Estatisticas</IonLabel>
+        </IonTabButton>
+
+        <IonTabButton
           tab="perfil"
           href="/tabs/perfil"
         >
@@ -61,6 +69,7 @@ import {
   imagesOutline,
   personOutline,
   informationCircleOutline,
+  statsChartOutline,
   trophyOutline
 } from 'ionicons/icons'
 </script>

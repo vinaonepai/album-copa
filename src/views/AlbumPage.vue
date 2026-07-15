@@ -103,7 +103,22 @@
           <IonSegmentButton value="pendentes">
             <IonLabel>Pendentes</IonLabel>
           </IonSegmentButton>
+
+          <IonSegmentButton value="favoritas">
+            <IonLabel>Favoritas</IonLabel>
+          </IonSegmentButton>
         </IonSegment>
+
+        <IonSelect
+          v-model="ordenacao"
+          class="ordenacao"
+          label="Ordenar"
+          label-placement="floating"
+          fill="outline"
+        >
+          <IonSelectOption value="cadastro">Cadastro</IonSelectOption>
+          <IonSelectOption value="coleta">Data de coleta</IonSelectOption>
+        </IonSelect>
 
         <div class="grid">
           <StickerCard
@@ -111,6 +126,7 @@
             :key="item.id"
             :sticker="item"
             @toggle="marcarColetada"
+            @favorite="marcarFavorita"
           />
         </div>
 
@@ -180,11 +196,13 @@ const router = useRouter();
 const {
   busca,
   filtro,
+  ordenacao,
   filtradas,
   totalFigurinhas,
   totalColetadas,
   progresso,
   marcarColetada,
+  marcarFavorita,
   cadastrarSticker,
 } = useAlbum();
 
@@ -284,7 +302,8 @@ ion-content {
   margin-bottom: 12px;
 }
 
-.segmento {
+.segmento,
+.ordenacao {
   margin-bottom: 20px;
 }
 

@@ -4,6 +4,7 @@ import {
   addSticker,
   getStickerStatsForUser,
   listStickersForUser,
+  toggleFavoriteSticker,
   toggleUserSticker,
 } from "@/services/database";
 
@@ -16,11 +17,17 @@ export function useAlbum() {
 
   const busca = ref("");
 
-  const filtro = ref<"todas" | "coletadas" | "pendentes">("todas");
+  const filtro = ref<"todas" | "coletadas" | "pendentes" | "favoritas">("todas");
+  const ordenacao = ref<"cadastro" | "coleta">("cadastro");
 
   async function load() {
     const userId = usuarioLogado.value?.id || null;
-    const items = await listStickersForUser(userId, busca.value, filtro.value);
+    const items = await listStickersForUser(
+      userId,
+      busca.value,
+      filtro.value,
+      ordenacao.value,
+    );
     const stats = await getStickerStatsForUser(userId);
 
     lista.value = items;
@@ -29,7 +36,7 @@ export function useAlbum() {
   }
 
   // recarrega quando busca/filtro mudam
-  watch([busca, filtro], () => {
+  watch([busca, filtro, ordenacao], () => {
     load();
   });
 
@@ -46,6 +53,14 @@ export function useAlbum() {
     if (!userId) return;
 
     await toggleUserSticker(userId, id);
+    await load();
+  };
+
+  const marcarFavorita = async (id: number) => {
+    const userId = usuarioLogado.value?.id;
+    if (!userId) return;
+
+    await toggleFavoriteSticker(userId, id);
     await load();
   };
 
@@ -75,12 +90,14 @@ export function useAlbum() {
     lista,
     busca,
     filtro,
+    ordenacao,
     filtradas,
     coletadas,
     totalFigurinhas,
     totalColetadas,
     progresso,
     marcarColetada,
+    marcarFavorita,
     cadastrarSticker,
     recarregar: load,
   };

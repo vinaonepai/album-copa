@@ -11,7 +11,8 @@ let initializationPromise: Promise<void> | null = null;
 let useFallback = false;
 const sqliteconnection = new SQLiteConnection(CapacitorSQLite);
 
-type FiltroSticker = "todas" | "coletadas" | "pendentes";
+type FiltroSticker = "todas" | "coletadas" | "pendentes" | "favoritas";
+type OrdenacaoSticker = "cadastro" | "coleta";
 
 type AchievementDefinition = {
   codigo: string;
@@ -173,11 +174,16 @@ async function setupDatabase() {
       user_id INTEGER NOT NULL,
       sticker_id INTEGER NOT NULL,
       coletada INTEGER NOT NULL DEFAULT 0,
+      favorite INTEGER NOT NULL DEFAULT 0,
+      collected_at TEXT,
       UNIQUE(user_id, sticker_id),
       FOREIGN KEY(user_id) REFERENCES usuarios(id) ON DELETE CASCADE,
       FOREIGN KEY(sticker_id) REFERENCES stickers(id) ON DELETE CASCADE
     );
   `);
+
+  await ensureColumn("user_stickers", "favorite", "INTEGER NOT NULL DEFAULT 0");
+  await ensureColumn("user_stickers", "collected_at", "TEXT");
 
   await db.execute(`
     CREATE TABLE IF NOT EXISTS achievements (
@@ -209,6 +215,15 @@ async function setupDatabase() {
   await seedAchievements();
 
   initialized = true;
+}
+
+async function ensureColumn(table: string, column: string, definition: string) {
+  const result = await getDb().query(`PRAGMA table_info(${table})`);
+  const hasColumn = (result.values || []).some((row: any) => row.name === column);
+
+  if (!hasColumn) {
+    await getDb().execute(`ALTER TABLE ${table} ADD COLUMN ${column} ${definition}`);
+  }
 }
 
 function ensureFallbackTables() {
@@ -693,6 +708,7 @@ export async function listStickersForUser(
   userId: number | null,
   busca = "",
   filtro: FiltroSticker = "todas",
+  ordenacao: OrdenacaoSticker = "cadastro",
 ) {
   await ensureDatabase();
 
@@ -719,6 +735,8 @@ export async function listStickersForUser(
         return {
           ...sticker,
           coletada: Boolean(status?.coletada),
+          favorite: Boolean(status?.favorite),
+          collected_at: status?.collected_at || null,
         };
       });
 
@@ -728,6 +746,16 @@ export async function listStickersForUser(
 
     if (filtro === "pendentes") {
       return merged.filter((sticker: any) => !sticker.coletada);
+    }
+
+    if (filtro === "favoritas") {
+      return merged.filter((sticker: any) => sticker.favorite);
+    }
+
+    if (ordenacao === "coleta") {
+      return merged.sort((a: any, b: any) =>
+        String(b.collected_at || "").localeCompare(String(a.collected_at || "")),
+      );
     }
 
     return merged;
@@ -749,6 +777,15 @@ export async function listStickersForUser(
     where += " AND COALESCE(us.coletada, 0) = 0";
   }
 
+  if (filtro === "favoritas") {
+    where += " AND COALESCE(us.favorite, 0) = 1";
+  }
+
+  const orderBy =
+    ordenacao === "coleta"
+      ? "ORDER BY us.collected_at DESC, s.id ASC"
+      : "ORDER BY s.id ASC";
+
   const result = await getDb().query(
     `
       SELECT
@@ -757,13 +794,15 @@ export async function listStickersForUser(
         s.selecao,
         s.foto,
         s.raridade,
-        COALESCE(us.coletada, 0) as coletada
+        COALESCE(us.coletada, 0) as coletada,
+        COALESCE(us.favorite, 0) as favorite,
+        us.collected_at
       FROM stickers s
       LEFT JOIN user_stickers us
         ON s.id = us.sticker_id
        AND us.user_id = ?
       ${where}
-      ORDER BY s.id ASC
+      ${orderBy}
     `,
     params,
   );
@@ -775,6 +814,8 @@ export async function listStickersForUser(
     foto: row.foto,
     raridade: row.raridade,
     coletada: Boolean(row.coletada),
+    favorite: Boolean(row.favorite),
+    collected_at: row.collected_at || null,
   }));
 }
 
@@ -788,13 +829,17 @@ export async function toggleUserSticker(userId: number, stickerId: number) {
     );
 
     if (idx >= 0) {
-      arr[idx].coletada = arr[idx].coletada ? 0 : 1;
+      const coletada = arr[idx].coletada ? 0 : 1;
+      arr[idx].coletada = coletada;
+      arr[idx].collected_at = coletada ? new Date().toISOString() : null;
     } else {
       arr.push({
         id: nextFallbackId(arr),
         user_id: userId,
         sticker_id: stickerId,
         coletada: 1,
+        favorite: 0,
+        collected_at: new Date().toISOString(),
       });
     }
 
@@ -816,15 +861,17 @@ export async function toggleUserSticker(userId: number, stickerId: number) {
 
   if (existing.values?.length) {
     const atual = existing.values[0].coletada ? 1 : 0;
+    const novaColeta = atual ? 0 : 1;
 
     await getDb().run(
       `
         UPDATE user_stickers
-        SET coletada = ?
+        SET coletada = ?,
+            collected_at = ?
         WHERE user_id = ?
           AND sticker_id = ?
       `,
-      [atual ? 0 : 1, userId, stickerId],
+      [novaColeta, novaColeta ? new Date().toISOString() : null, userId, stickerId],
     );
     await recalculateAchievementsForUser(userId);
     return;
@@ -832,12 +879,71 @@ export async function toggleUserSticker(userId: number, stickerId: number) {
 
   await getDb().run(
     `
-      INSERT INTO user_stickers (user_id, sticker_id, coletada)
-      VALUES (?, ?, 1)
+      INSERT INTO user_stickers (user_id, sticker_id, coletada, favorite, collected_at)
+      VALUES (?, ?, 1, 0, ?)
+    `,
+    [userId, stickerId, new Date().toISOString()],
+  );
+  await recalculateAchievementsForUser(userId);
+}
+
+export async function toggleFavoriteSticker(userId: number, stickerId: number) {
+  await ensureDatabase();
+
+  if (useFallback) {
+    const arr = JSON.parse(localStorage.getItem("user_stickers") || "[]");
+    const idx = arr.findIndex(
+      (item: any) => item.user_id === userId && item.sticker_id === stickerId,
+    );
+
+    if (idx >= 0) {
+      arr[idx].favorite = arr[idx].favorite ? 0 : 1;
+    } else {
+      arr.push({
+        id: nextFallbackId(arr),
+        user_id: userId,
+        sticker_id: stickerId,
+        coletada: 0,
+        favorite: 1,
+        collected_at: null,
+      });
+    }
+
+    localStorage.setItem("user_stickers", JSON.stringify(arr));
+    return;
+  }
+
+  const existing = await getDb().query(
+    `
+      SELECT favorite
+      FROM user_stickers
+      WHERE user_id = ?
+        AND sticker_id = ?
+      LIMIT 1
     `,
     [userId, stickerId],
   );
-  await recalculateAchievementsForUser(userId);
+
+  if (existing.values?.length) {
+    await getDb().run(
+      `
+        UPDATE user_stickers
+        SET favorite = ?
+        WHERE user_id = ?
+          AND sticker_id = ?
+      `,
+      [existing.values[0].favorite ? 0 : 1, userId, stickerId],
+    );
+    return;
+  }
+
+  await getDb().run(
+    `
+      INSERT INTO user_stickers (user_id, sticker_id, coletada, favorite, collected_at)
+      VALUES (?, ?, 0, 1, NULL)
+    `,
+    [userId, stickerId],
+  );
 }
 
 export async function recalculateAchievementsForUser(userId: number) {
@@ -1079,21 +1185,32 @@ export async function getStickerStatsForUser(userId: number | null) {
       localStorage.getItem("user_stickers") || "[]",
     );
 
-    const coletadas = userStickers.filter(
+    const coletadasItems = userStickers.filter(
       (item: any) => item.user_id === userId && item.coletada === 1,
+    );
+    const coletadasIds = new Set(coletadasItems.map((item: any) => item.sticker_id));
+    const coletadas = coletadasItems.length;
+    const rarasColetadas = stickers.filter(
+      (sticker: any) =>
+        coletadasIds.has(sticker.id) &&
+        String(sticker.raridade).toLowerCase() === "rara",
+    ).length;
+    const brilhantesColetadas = stickers.filter(
+      (sticker: any) =>
+        coletadasIds.has(sticker.id) &&
+        String(sticker.raridade).toLowerCase() === "brilhante",
     ).length;
 
-    return {
-      total: stickers.length,
-      coletadas,
-    };
+    return buildStats(stickers.length, coletadas, rarasColetadas, brilhantesColetadas);
   }
 
   const result = await getDb().query(
     `
       SELECT
         COUNT(s.id) as total,
-        SUM(CASE WHEN COALESCE(us.coletada, 0) = 1 THEN 1 ELSE 0 END) as coletadas
+        SUM(CASE WHEN COALESCE(us.coletada, 0) = 1 THEN 1 ELSE 0 END) as coletadas,
+        SUM(CASE WHEN COALESCE(us.coletada, 0) = 1 AND LOWER(s.raridade) = 'rara' THEN 1 ELSE 0 END) as rarasColetadas,
+        SUM(CASE WHEN COALESCE(us.coletada, 0) = 1 AND LOWER(s.raridade) = 'brilhante' THEN 1 ELSE 0 END) as brilhantesColetadas
       FROM stickers s
       LEFT JOIN user_stickers us
         ON s.id = us.sticker_id
@@ -1104,10 +1221,118 @@ export async function getStickerStatsForUser(userId: number | null) {
 
   const row = result.values?.[0];
 
+  return buildStats(
+    Number(row?.total || 0),
+    Number(row?.coletadas || 0),
+    Number(row?.rarasColetadas || 0),
+    Number(row?.brilhantesColetadas || 0),
+  );
+}
+
+function buildStats(
+  total: number,
+  coletadas: number,
+  rarasColetadas: number,
+  brilhantesColetadas: number,
+) {
+  const faltantes = Math.max(0, total - coletadas);
+  const comunsColetadas = Math.max(0, coletadas - rarasColetadas - brilhantesColetadas);
+  const pontuacao =
+    comunsColetadas + rarasColetadas * 5 + brilhantesColetadas * 10;
+  const percentual = total ? coletadas / total : 0;
+  const ranking = getRanking(pontuacao);
+
   return {
-    total: row?.total || 0,
-    coletadas: row?.coletadas || 0,
+    total,
+    coletadas,
+    faltantes,
+    rarasColetadas,
+    brilhantesColetadas,
+    percentual,
+    pontuacao,
+    ...ranking,
   };
+}
+
+function getRanking(pontuacao: number) {
+  if (pontuacao > 500) {
+    return {
+      nivel: "Diamante",
+      proximoNivel: "Maximo",
+      pontosProximoNivel: pontuacao,
+      progressoNivel: 1,
+    };
+  }
+
+  if (pontuacao >= 251) {
+    return {
+      nivel: "Ouro",
+      proximoNivel: "Diamante",
+      pontosProximoNivel: 501,
+      progressoNivel: (pontuacao - 251) / 250,
+    };
+  }
+
+  if (pontuacao >= 101) {
+    return {
+      nivel: "Prata",
+      proximoNivel: "Ouro",
+      pontosProximoNivel: 251,
+      progressoNivel: (pontuacao - 101) / 150,
+    };
+  }
+
+  return {
+    nivel: "Bronze",
+    proximoNivel: "Prata",
+    pontosProximoNivel: 101,
+    progressoNivel: pontuacao / 101,
+  };
+}
+
+export async function listRecentCollectedStickers(userId: number, limit = 10) {
+  await ensureDatabase();
+
+  if (useFallback) {
+    const stickers = JSON.parse(localStorage.getItem("stickers") || "[]");
+    const userStickers = JSON.parse(
+      localStorage.getItem("user_stickers") || "[]",
+    );
+
+    return userStickers
+      .filter((item: any) => item.user_id === userId && item.coletada === 1)
+      .sort((a: any, b: any) =>
+        String(b.collected_at || "").localeCompare(String(a.collected_at || "")),
+      )
+      .slice(0, limit)
+      .map((item: any) => ({
+        ...stickers.find((sticker: any) => sticker.id === item.sticker_id),
+        collected_at: item.collected_at || null,
+      }))
+      .filter((item: any) => item.id);
+  }
+
+  const result = await getDb().query(
+    `
+      SELECT
+        s.id,
+        s.nome,
+        s.selecao,
+        s.raridade,
+        s.foto,
+        us.collected_at
+      FROM user_stickers us
+      INNER JOIN stickers s
+        ON s.id = us.sticker_id
+      WHERE us.user_id = ?
+        AND us.coletada = 1
+      ORDER BY us.collected_at DESC
+      LIMIT ?
+    `,
+    [userId, limit],
+  );
+
+  return result.values || [];
 }
 
 export async function getUserCollectedCount(userId: number) {
