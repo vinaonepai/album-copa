@@ -187,7 +187,9 @@ ion-content {
 }
 
 .conteudo {
-  padding: 20px;
+  margin: 0 auto;
+  max-width: 1100px;
+  padding: 16px 16px calc(env(safe-area-inset-bottom) + 82px);
 }
 
 .resumo-card,
@@ -265,6 +267,17 @@ ion-content {
 @media (min-width: 768px) {
   .grid {
     grid-template-columns: repeat(2, 1fr);
+  }
+}
+
+@media (max-width: 420px) {
+  .hero h1 {
+    font-size: 24px;
+  }
+
+  .conteudo {
+    padding-left: 12px;
+    padding-right: 12px;
   }
 }
 

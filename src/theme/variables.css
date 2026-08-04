@@ -1,2 +1,12 @@
 /* For information on how to create your own theme, please refer to:
 http://ionicframework.com/docs/theming/ */
+
+html,
+body,
+#app {
+  height: 100%;
+}
+
+* {
+  box-sizing: border-box;
+}

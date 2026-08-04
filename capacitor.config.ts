@@ -1,8 +1,8 @@
 import type { CapacitorConfig } from '@capacitor/cli';
 
 const config: CapacitorConfig = {
-  appId: 'io.ionic.starter',
-  appName: 'album-copa',
+  appId: 'br.com.albumcopa.app',
+  appName: 'Album Copa',
   webDir: 'dist'
 };
 

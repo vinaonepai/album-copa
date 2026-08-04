@@ -91,6 +91,7 @@
         <IonSegment
           v-model="filtro"
           class="segmento"
+          scrollable
         >
           <IonSegmentButton value="todas">
             <IonLabel>Todas</IonLabel>
@@ -256,14 +257,14 @@ ion-content {
     #facc15
   );
 
-  padding: 30px;
+  padding: calc(env(safe-area-inset-top) + 22px) 20px 24px;
   text-align: center;
   color: white;
 }
 
 .hero h1 {
   margin: 0;
-  font-size: 32px;
+  font-size: 28px;
 }
 
 .hero p {
@@ -271,7 +272,10 @@ ion-content {
 }
 
 .conteudo {
-  padding: 20px;
+  box-sizing: border-box;
+  margin: 0 auto;
+  max-width: 1100px;
+  padding: 16px 16px calc(env(safe-area-inset-bottom) + 82px);
 }
 
 .estatisticas-card,
@@ -288,7 +292,7 @@ ion-content {
 
   color: white;
 
-  border-radius: 20px;
+  border-radius: 8px;
 
   margin-bottom: 20px;
 }
@@ -307,22 +311,36 @@ ion-content {
   margin-bottom: 20px;
 }
 
+.segmento ion-segment-button {
+  min-width: 92px;
+}
+
 .grid {
   display: grid;
-  gap: 20px;
+  gap: 16px;
+  grid-template-columns: minmax(0, 1fr);
 }
 
 @media (min-width: 768px) {
   .grid {
-    grid-template-columns:
-      repeat(2, 1fr);
+    grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 }
 
 @media (min-width: 1200px) {
   .grid {
-    grid-template-columns:
-      repeat(3, 1fr);
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 420px) {
+  .hero h1 {
+    font-size: 24px;
+  }
+
+  .conteudo {
+    padding-left: 12px;
+    padding-right: 12px;
   }
 }
 </style>

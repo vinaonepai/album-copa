@@ -325,7 +325,7 @@ ion-content {
   gap: 18px;
   margin: 0 auto;
   max-width: 980px;
-  padding: 22px;
+  padding: 18px 16px calc(env(safe-area-inset-bottom) + 82px);
 }
 
 .painel-usuario {

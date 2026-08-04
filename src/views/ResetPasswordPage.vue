@@ -1,24 +1,18 @@
 <template>
   <IonPage>
-
     <IonContent>
-
       <div class="container">
-
         <IonCard class="form-card">
-
           <div class="logo">
-            <h1>🔐 Recuperar Senha</h1>
-            <p>Receba um e-mail de recuperação</p>
+            <h1>Recuperar Senha</h1>
+            <p>Receba um e-mail de recuperacao</p>
           </div>
 
-          <ResetPasswordForm
-            @enviado="recuperar"
-          />
+          <ResetPasswordForm @enviado="recuperar" />
 
           <p
-            class="mensagem"
             v-if="mensagem"
+            class="mensagem"
           >
             {{ mensagem }}
           </p>
@@ -30,78 +24,84 @@
           >
             Voltar para Login
           </IonButton>
-
         </IonCard>
-
       </div>
-
     </IonContent>
-
   </IonPage>
 </template>
 
 <script setup lang="ts">
 import {
-  IonPage,
-  IonContent,
+  IonButton,
   IonCard,
-  IonButton
-} from '@ionic/vue'
+  IonContent,
+  IonPage,
+} from "@ionic/vue";
+import { ref } from "vue";
 
-import { ref } from 'vue'
+import ResetPasswordForm from "@/components/ResetPasswordForm.vue";
+import { useAuth } from "@/composables/useAuth";
 
-import ResetPasswordForm from '@/components/ResetPasswordForm.vue'
-import { useAuth } from '@/composables/useAuth'
-
-const mensagem = ref('')
-
-const { resetarSenha } = useAuth()
+const mensagem = ref("");
+const { resetarSenha } = useAuth();
 
 function recuperar(email: string) {
-  mensagem.value = resetarSenha(email)
+  mensagem.value = resetarSenha(email);
 }
 </script>
 
 <style scoped>
 ion-content {
-  --background: linear-gradient(
-    135deg,
-    #0f172a,
-    #1e293b
-  );
+  --background: linear-gradient(135deg, #0f172a, #1e293b);
 }
 
 .container {
-  min-height: 100vh;
+  align-items: center;
+  box-sizing: border-box;
   display: flex;
   justify-content: center;
-  align-items: center;
+  min-height: 100%;
+  padding: calc(env(safe-area-inset-top) + 20px) 16px calc(env(safe-area-inset-bottom) + 20px);
 }
 
 .form-card {
-  width: 100%;
+  border-radius: 8px;
+  margin: 0;
   max-width: 450px;
-  padding: 25px;
-  border-radius: 28px;
+  padding: 22px;
+  width: 100%;
 }
 
 .logo {
+  margin-bottom: 24px;
   text-align: center;
-  margin-bottom: 25px;
 }
 
 .logo h1 {
   color: white;
-  margin-bottom: 10px;
+  font-size: 28px;
+  margin: 0;
 }
 
 .logo p {
   color: #cbd5e1;
+  margin-bottom: 0;
 }
 
 .mensagem {
-  text-align: center;
   color: #22c55e;
   margin: 15px 0;
+  overflow-wrap: anywhere;
+  text-align: center;
+}
+
+@media (max-width: 420px) {
+  .form-card {
+    padding: 18px;
+  }
+
+  .logo h1 {
+    font-size: 24px;
+  }
 }
 </style>

@@ -1,14 +1,11 @@
 <template>
   <IonPage>
     <IonContent>
-
       <div class="container">
-
         <IonCard class="form-card">
-
           <div class="logo">
-            <h1>⚽ Criar Conta</h1>
-            <p>Comece sua coleção digital</p>
+            <h1>Criar Conta</h1>
+            <p>Comece sua colecao digital</p>
           </div>
 
           <IonInput
@@ -49,107 +46,108 @@
           >
             Voltar para Login
           </IonButton>
-
         </IonCard>
-
       </div>
-
     </IonContent>
   </IonPage>
 </template>
 
 <script setup lang="ts">
 import {
-  IonPage,
-  IonContent,
+  IonButton,
   IonCard,
+  IonContent,
   IonInput,
-  IonButton
-} from '@ionic/vue'
+  IonPage,
+} from "@ionic/vue";
+import { ref } from "vue";
+import { useRouter } from "vue-router";
 
-import { ref } from 'vue'
-import { useRouter } from 'vue-router'
-import { useAuth } from '@/composables/useAuth'
+import { useAuth } from "@/composables/useAuth";
 
-const nome = ref('')
-const email = ref('')
-const senha = ref('')
+const nome = ref("");
+const email = ref("");
+const senha = ref("");
 
-const router = useRouter()
-
-const { cadastrar } = useAuth()
+const router = useRouter();
+const { cadastrar } = useAuth();
 
 async function criarConta() {
-
-  if (
-    !nome.value.trim() ||
-    !email.value.trim() ||
-    !senha.value
-  ) {
-    alert('Preencha todos os campos')
-    return
+  if (!nome.value.trim() || !email.value.trim() || !senha.value) {
+    alert("Preencha todos os campos");
+    return;
   }
 
   if (senha.value.length < 6) {
-    alert('Senha muito fraca. Use pelo menos 6 caracteres.')
-    return
+    alert("Senha muito fraca. Use pelo menos 6 caracteres.");
+    return;
   }
 
   try {
-    await cadastrar(
-      nome.value.trim(),
-      email.value.trim(),
-      senha.value
-    )
+    await cadastrar(nome.value.trim(), email.value.trim(), senha.value);
   } catch (err: any) {
-    alert(err?.message || 'Erro ao criar conta')
-    return
+    alert(err?.message || "Erro ao criar conta");
+    return;
   }
 
-  alert('Conta criada com sucesso!')
-
-  router.push('/login')
+  alert("Conta criada com sucesso!");
+  router.push("/login");
 }
 </script>
 
 <style scoped>
 ion-content {
-  --background: linear-gradient(
-    135deg,
-    #0f172a,
-    #1e293b
-  );
+  --background: linear-gradient(135deg, #0f172a, #1e293b);
 }
 
 .container {
-  min-height: 100vh;
+  align-items: center;
+  box-sizing: border-box;
   display: flex;
   justify-content: center;
-  align-items: center;
+  min-height: 100%;
+  padding: calc(env(safe-area-inset-top) + 20px) 16px calc(env(safe-area-inset-bottom) + 20px);
 }
 
 .form-card {
-  width: 100%;
+  border-radius: 8px;
+  margin: 0;
   max-width: 450px;
-  padding: 25px;
-  border-radius: 28px;
+  padding: 22px;
+  width: 100%;
 }
 
 .logo {
+  margin-bottom: 24px;
   text-align: center;
-  margin-bottom: 25px;
 }
 
 .logo h1 {
   color: white;
-  margin-bottom: 10px;
+  font-size: 28px;
+  margin: 0;
 }
 
 .logo p {
   color: #cbd5e1;
+  margin-bottom: 0;
 }
 
 ion-input {
-  margin-bottom: 15px;
+  margin-bottom: 14px;
+}
+
+ion-button + ion-button {
+  margin-top: 10px;
+}
+
+@media (max-width: 420px) {
+  .form-card {
+    padding: 18px;
+  }
+
+  .logo h1 {
+    font-size: 24px;
+  }
 }
 </style>

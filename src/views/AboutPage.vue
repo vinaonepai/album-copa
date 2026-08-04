@@ -1,37 +1,25 @@
 <template>
   <IonPage>
-
     <IonHeader>
       <IonToolbar class="toolbar-premium">
-        <IonTitle>ℹ️ Sobre</IonTitle>
+        <IonTitle>Sobre</IonTitle>
       </IonToolbar>
     </IonHeader>
 
     <IonContent>
-
       <div class="container">
-
-        <div class="logo">
-          🏆
-        </div>
-
         <IonCard class="about-card">
-
           <IonCardContent>
-
-            <h1>Álbum da Copa 2026</h1>
+            <h1>Album da Copa 2026</h1>
 
             <p>
-              Aplicativo desenvolvido para
-              gerenciamento de figurinhas
-              da Copa do Mundo.
+              Aplicativo desenvolvido para gerenciamento de figurinhas da Copa
+              do Mundo.
             </p>
 
             <div class="info">
-
-              <h2>Versão</h2>
+              <h2>Versao</h2>
               <p>1.0.0</p>
-
             </div>
 
             <IonButton
@@ -40,7 +28,7 @@
               href="https://www.termsfeed.com/live/terms-and-conditions"
               target="_blank"
             >
-              📄 Termos de Uso
+              Termos de Uso
             </IonButton>
 
             <IonButton
@@ -49,31 +37,26 @@
               href="https://www.termsfeed.com/live/privacy-policy"
               target="_blank"
             >
-              🔒 Política de Privacidade
+              Politica de Privacidade
             </IonButton>
-
           </IonCardContent>
-
         </IonCard>
-
       </div>
-
     </IonContent>
-
   </IonPage>
 </template>
 
 <script setup lang="ts">
 import {
-  IonPage,
-  IonHeader,
-  IonToolbar,
-  IonTitle,
-  IonContent,
+  IonButton,
   IonCard,
   IonCardContent,
-  IonButton
-} from '@ionic/vue'
+  IonContent,
+  IonHeader,
+  IonPage,
+  IonTitle,
+  IonToolbar,
+} from "@ionic/vue";
 </script>
 
 <style scoped>
@@ -87,39 +70,36 @@ ion-content {
 }
 
 .container {
-  max-width: 700px;
+  box-sizing: border-box;
   margin: auto;
-  padding: 30px;
-}
-
-.logo {
-  text-align: center;
-  font-size: 80px;
-  margin-bottom: 20px;
+  max-width: 700px;
+  padding: 20px 16px calc(env(safe-area-inset-bottom) + 82px);
 }
 
 .about-card {
-  background: rgba(
-    255,
-    255,
-    255,
-    0.08
-  );
-
+  background: rgba(255, 255, 255, 0.08);
+  border-radius: 8px;
   color: white;
-
-  border-radius: 24px;
-
-  backdrop-filter: blur(10px);
 }
 
 h1 {
+  font-size: 26px;
+  margin-top: 0;
   text-align: center;
 }
 
+p {
+  color: #cbd5e1;
+  line-height: 1.45;
+}
+
 .info {
-  margin: 25px 0;
+  margin: 24px 0;
   text-align: center;
+}
+
+.info h2 {
+  margin-bottom: 6px;
 }
 
 ion-button {
