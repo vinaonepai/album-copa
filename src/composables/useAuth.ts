@@ -3,7 +3,6 @@ import {
   initDatabase,
   addUsuario,
   realizarLogin,
-  findUsuarioById,
 } from "@/services/database";
 
 interface Usuario {
@@ -15,24 +14,8 @@ interface Usuario {
 const usuarioLogado = ref<Usuario | null>(null);
 
 export const authReady = initDatabase().then(async () => {
-  const stored = localStorage.getItem("usuarioId");
-
-  if (!stored) {
-    return;
-  }
-
-  const usuario = await findUsuarioById(Number(stored));
-
-  if (!usuario) {
-    localStorage.removeItem("usuarioId");
-    return;
-  }
-
-  usuarioLogado.value = {
-    id: usuario.id,
-    nome: usuario.nome,
-    email: usuario.email,
-  };
+  localStorage.removeItem("usuarioId");
+  usuarioLogado.value = null;
 });
 
 export function useAuth() {
