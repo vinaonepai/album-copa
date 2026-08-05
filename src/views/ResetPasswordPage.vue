@@ -65,7 +65,10 @@ ion-content {
 }
 
 .form-card {
+  background: #111827;
+  border: 1px solid rgba(148, 163, 184, 0.24);
   border-radius: 8px;
+  color: white;
   margin: 0;
   max-width: 450px;
   padding: 22px;

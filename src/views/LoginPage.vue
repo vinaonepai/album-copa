@@ -103,7 +103,10 @@ ion-content {
 }
 
 .form-card {
+  background: #111827;
+  border: 1px solid rgba(148, 163, 184, 0.24);
   border-radius: 8px;
+  color: white;
   margin: 0;
   max-width: 450px;
   padding: 22px;
@@ -127,6 +130,11 @@ ion-content {
 }
 
 ion-input {
+  --background: #0f172a;
+  --border-color: rgba(203, 213, 225, 0.48);
+  --color: white;
+  --highlight-color-focused: #22c55e;
+  --placeholder-color: #cbd5e1;
   margin-bottom: 14px;
 }
 

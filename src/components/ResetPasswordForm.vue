@@ -35,3 +35,18 @@ function enviar() {
   emit('enviado', email.value)
 }
 </script>
+
+<style scoped>
+ion-input {
+  --background: #0f172a;
+  --border-color: rgba(203, 213, 225, 0.48);
+  --color: white;
+  --highlight-color-focused: #22c55e;
+  --placeholder-color: #cbd5e1;
+  margin-bottom: 14px;
+}
+
+ion-button {
+  --border-radius: 8px;
+}
+</style>
